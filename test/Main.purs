@@ -2,71 +2,74 @@ module Test.Main where
 
 import Prelude
 
+import Debug.Trace
 import Control.Apply ((*>))
-import Control.Coroutine
-import Control.Coroutine.Aff
-import Control.Monad
-import Control.Monad.Aff
-import Control.Monad.Eff
-import Control.Monad.Eff.Class
-import Control.Monad.Eff.Console
-import Control.Monad.Rec.Class
-import Control.Monad.Free.Trans
-import Data.Tuple
-import Control.Monad.ST
-import Data.Array hiding (filter)
-import Data.Array.ST
-import Data.Either
+import Control.Monad.Aff (Aff(), launchAff)
+import Control.Monad.Eff.Class (liftEff)
+import Control.Monad.Eff (Eff())
+import Control.Monad.Eff.Console (log)
+import Control.Monad.ST (ST())
+import Data.Array ((:), head, length, drop, zipWith, nub, sort)
+import Data.Array.ST (freeze, thaw)
+import Data.Either (Either(..), either)
 import Data.Functor (($>))
-import Data.Maybe
-import Data.Tuple
+import Data.Foldable (foldl)
+import Data.Generic (Generic, gEq, gShow)
+import Data.Maybe (maybe, Maybe(..))
+import Data.Tuple (Tuple(..))
+import Data.Tuple.Nested (uncurry3)
 
-import Test.Unit
-import Test.QuickCheck.Arbitrary
-import Test.QuickCheck.Gen
+import Test.AsyncCheck (asyncCheck)
+import qualified Test.Coroutine (collect, take, checkGEq, done) as C
+import Test.Helpers (stubGet)
+import Test.StrongCheck (Arbitrary, arbitrary)
+import Test.StrongCheck.Generic (gArbitrary)
+import Test.StrongCheck.Gen (suchThat)
 
-import Data.CouchDB
-import Control.Coroutine.CouchDB
+import Control.Coroutine
 
---newtype QCChange       = QCChange Change
---newtype QCResult       = QCResult Result
---newtype QCNotification = QCNotification Notification
---
---runQCChange :: QCChange -> Change
---runQCChange (QCChange change) = change
---
---runQCResult :: QCResult -> Result
---runQCResult (QCResult result) = result
---
---runQCNotification :: QCNotification -> Notification
---runQCNotification (QCNotification notification) = notification
+import Control.Coroutine.Aff.Seq
 
-popSTArray :: forall a h eff. STArray h a -> Eff (st :: ST h | eff) (Maybe a)
-popSTArray stArr = do
-  arr <- freeze stArr
-  spliceSTArray stArr 0 1 []
-  return $ head arr
+newtype BestThing = BestThing { since :: String, name :: String }
 
-getStubGet :: forall a b eff1 eff2. (Show a) =>
-  Array (Either String a) -> Eff (st :: ST b | eff1) (Int -> Eff (st :: ST b | eff2) (Either String a))
-getStubGet results = do
-  mutableResults <- thaw results
-  return $ \_ -> do
-    currentResult <- popSTArray mutableResults
-    return $ maybe (Left "Ran out of values") id currentResult
+derive instance genericBestThing :: Generic BestThing
 
-collect :: forall a m r. (Monad m) => Transformer a (Array a) m r
-collect = tailRecM go []
-  where
-  go :: Array a -> Transformer a (Array a) m (Either (Array a) r)
-  go xs = liftFreeT $ Transform \x -> Tuple (xs <> [x]) (Left (xs <> [x]))
+instance arbBestThing :: Arbitrary BestThing where
+  arbitrary = BestThing <$> ({ since: _, name: _ } <$> arbitrary <*> arbitrary)
+
+newtype AtLeastTwoAndUnique a = AtLeastTwoAndUnique (Tuple (Tuple a a) (Array a))
+
+runAtLeastTwoAndUnique :: forall a. AtLeastTwoAndUnique a -> { fst :: a, snd :: a, xs :: Array a }
+runAtLeastTwoAndUnique (AtLeastTwoAndUnique tuple) = (uncurry3 { fst: _, snd: _, xs: _ }) tuple
+
+instance arbAtLeastTwoAndUnique :: (Arbitrary a, Ord a, Show a) => Arbitrary (AtLeastTwoAndUnique a) where
+  arbitrary = AtLeastTwoAndUnique `map` (arbitrary `suchThat` (unique `compose` toArray))
+    where
+    unique xs = nub xs `eq` xs
+    toArray (Tuple (Tuple x1 x2) xs) = x1 : x2 : xs
+
+exampleBestThing = BestThing { since: "Sliced Bread", name: "PureScript" }
+
+fromNames :: Array String -> Array BestThing
+fromNames names = zipWith (\s n -> BestThing { since: s, name: n }) names (drop 1 names)
+
+getBestThing :: forall eff. Array BestThing -> String -> Aff eff (Either Unit BestThing)
+getBestThing xs = stubGet (Right <$> xs) (\since (BestThing obj) -> since == obj.since)
 
 main = do
-  randomSample' 25 arbitrary >>= (flip foreachE) \notifications -> runTest do
-    test "produceNotifications" do
-      assertFn "should produce notifications sequentially" \done -> do
-        stubGet <- getStubGet notifications
-        let f xs = if length xs == length notifications then done (xs == notifications) else return unit
-        let c = consumer (($> Nothing) <<< liftEff <<< f <<< (Right <$>))
-        let p = produceNotifications (liftEff <<< stubGet) 0
-        launchAff $ later $ runProcess (p $~ collect $$ c)
+  log "produceSeq:" *> do
+    asyncCheck "Should produce results sequentially." 100 \done atLeastTwoUniqueNames -> do
+      let names = runAtLeastTwoAndUnique atLeastTwoUniqueNames
+      let bestThings = fromNames $ names.fst : names.snd : names.xs
+
+      let getter = getBestThing bestThings
+      let pluckSeq (BestThing obj) = obj.name
+      let initialSeq = names.fst
+
+      let produce = produceSeq getter pluckSeq initialSeq
+
+      launchAff $ runProcess (produce $~ (C.checkGEq bestThings) $$ (C.done (liftEff <<< done)))
+
+    -- Should fail when getter provides a left
+
+    -- Should fail when getter fails

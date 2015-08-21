@@ -1,5 +1,5 @@
 {
-  "name": "purescript-couchdb-aff-coroutines",
+  "name": "purescript-sequential-aff-coroutines",
   "version": "1.0.0",
   "moduleType": [
     "node"
@@ -17,11 +17,17 @@
     "purescript-exceptions": "~0.3.0",
     "purescript-control": "~0.3.0",
     "purescript-foreign": "~0.7.0",
-    "purescript-freet": "~0.1.3"
+    "purescript-freet": "~0.1.3",
+    "purescript-generics": "~0.5.0"
   },
   "devDependencies": {
-    "purescript-quickcheck": "~0.10.1",
     "purescript-test-unit": "~2.0.0",
-    "purescript-freet": "~0.1.3"
+    "purescript-freet": "~0.1.3",
+    "purescript-quickcheck": "~0.10.1",
+    "purescript-exceptions": "~0.3.0",
+    "purescript-refs": "~0.2.0",
+    "purescript-strongcheck": "2f83c88823c0bd2c150ece0328d2747152f51858",
+    "purescript-free": "~0.7.0",
+    "purescript-strongcheck-generics": "~0.1.0"
   }
 }

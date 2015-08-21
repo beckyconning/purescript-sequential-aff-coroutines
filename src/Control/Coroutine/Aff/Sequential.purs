@@ -1,4 +1,4 @@
-module Control.Coroutine.CouchDB where
+module Control.Coroutine.Aff.Seq where
 
 import Prelude
 
@@ -6,7 +6,6 @@ import Prelude
 import Data.Maybe
 import Data.Either (Either(..), either)
 import Data.Functor (($>))
-import Data.CouchDB (Notification(..))
 
 import Control.Apply ((*>))
 import Control.Coroutine
@@ -19,12 +18,12 @@ import Control.Monad.Aff
 import Control.Monad.Aff.AVar
 import Control.Monad.Trans
 
-type NotificationGetter e eff = Int -> Aff (avar :: AVAR | eff) (Either e Notification)
-type NotificationProducer e eff = Producer Notification (Aff (avar :: AVAR | eff)) e
+type AffGetter a b err eff = b -> Aff (avar :: AVAR | eff) (Either err a)
+type SeqProducer a err eff = Producer a (Aff (avar :: AVAR | eff)) err
 
-produceNotifications :: forall e eff. NotificationGetter e eff -> Int -> NotificationProducer e eff
-produceNotifications get initialSeq = produce \emit -> launchAff $ getNext emit initialSeq
+produceSeq :: forall a b err eff. AffGetter a b err eff -> (a -> b) -> b -> SeqProducer a err eff
+produceSeq get pluckSeq initialSeq = produce \emit -> launchAff $ getNext emit initialSeq
   where
   getNext emit seq = later $ get seq >>= either (emitAndEnd emit) (emitAndGetNext emit)
-  emitAndGetNext emit n@(Notification o) = (liftEff $ emit $ Left n) *> getNext emit o.last_seq
+  emitAndGetNext emit x = (liftEff $ emit $ Left x) *> getNext emit (pluckSeq x)
   emitAndEnd emit error = liftEff $ emit $ Right error
