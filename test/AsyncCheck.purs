@@ -1,21 +1,17 @@
 module Test.AsyncCheck where
 
-import Prelude
-
-import Test.Process (exit, EXIT(), logGreen, logRed, COLORLOG())
-import Data.Foldable (all)
-import Data.Array ((:), length)
-import Control.Monad.Eff.Class (liftEff)
-import Control.Monad.Eff (foreachE, Eff())
-import Control.Monad.Eff.Console (log, CONSOLE())
-import Control.Monad.Eff.Random (RANDOM())
-import Control.Monad.Eff.Ref (newRef, REF(), readRef, modifyRef)
-import Control.Monad.Trans (lift)
 import Control.Apply ((*>))
+import Control.Monad.Eff (foreachE, Eff())
+import Control.Monad.Eff.Console (CONSOLE)
+import Control.Monad.Eff.Random (RANDOM)
+import Control.Monad.Eff.Ref (newRef, REF, readRef, modifyRef)
 import Control.Monad.Trampoline (runTrampoline)
-
-import Test.StrongCheck.Gen
-import Test.StrongCheck
+import Data.Array ((:), length)
+import Data.Foldable (all)
+import Prelude (Unit, ($), unit, return, (==), bind, (++))
+import Test.Process (exit, EXIT, logGreen, logRed, COLORLOG)
+import Test.StrongCheck (class Arbitrary, arbitrary)
+import Test.StrongCheck.Gen (sample)
 
 type AsyncCheckEff eff =
   Eff (exit :: EXIT, colorLog:: COLORLOG, console :: CONSOLE, ref :: REF, random :: RANDOM | eff) Unit

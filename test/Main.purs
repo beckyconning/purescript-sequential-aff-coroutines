@@ -1,34 +1,23 @@
 module Test.Main where
 
-import Prelude
-
-import Debug.Trace
 import Control.Apply ((*>))
+import Control.Coroutine (($$), ($~), runProcess)
+import Control.Coroutine.Aff.Seq (produceSeq)
 import Control.Monad.Aff (Aff(), launchAff)
 import Control.Monad.Eff.Class (liftEff)
-import Control.Monad.Eff (Eff())
 import Control.Monad.Eff.Console (log)
-import Control.Monad.ST (ST())
-import Data.Array ((:), head, length, drop, zipWith, nub, sort)
-import Data.Array.ST (freeze, thaw)
-import Data.Either (Either(..), either)
-import Data.Functor (($>))
-import Data.Foldable (foldl)
-import Data.Generic (Generic, gEq, gShow)
-import Data.Maybe (maybe, Maybe(..))
+import Control.Monad.Eff.Exception (Error())
+import Data.Array ((:), drop, zipWith, nub)
+import Data.Either (Either(..))
+import Data.Generic (class Generic)
 import Data.Tuple (Tuple(..))
 import Data.Tuple.Nested (uncurry3)
-
+import Prelude (class Show, class Ord, (<<<), ($), (<$>), (==), compose, map, eq, (<*>))
 import Test.AsyncCheck (asyncCheck)
-import qualified Test.Coroutine (collect, take, checkGEq, done) as C
+import Test.Coroutine (checkGEq, done) as C
 import Test.Helpers (stubGet)
-import Test.StrongCheck (Arbitrary, arbitrary)
-import Test.StrongCheck.Generic (gArbitrary)
+import Test.StrongCheck (class Arbitrary, arbitrary)
 import Test.StrongCheck.Gen (suchThat)
-
-import Control.Coroutine
-
-import Control.Coroutine.Aff.Seq
 
 newtype BestThing = BestThing { since :: String, name :: String }
 
@@ -48,21 +37,23 @@ instance arbAtLeastTwoAndUnique :: (Arbitrary a, Ord a, Show a) => Arbitrary (At
     unique xs = nub xs `eq` xs
     toArray (Tuple (Tuple x1 x2) xs) = x1 : x2 : xs
 
+exampleBestThing :: BestThing
 exampleBestThing = BestThing { since: "Sliced Bread", name: "PureScript" }
 
 fromNames :: Array String -> Array BestThing
 fromNames names = zipWith (\s n -> BestThing { since: s, name: n }) names (drop 1 names)
 
-getBestThing :: forall eff. Array BestThing -> String -> Aff eff (Either Unit BestThing)
-getBestThing xs = stubGet (Right <$> xs) (\since (BestThing obj) -> since == obj.since)
+getBestThing :: forall eff. Array (Either Error BestThing) -> String -> Aff eff BestThing
+getBestThing xs = stubGet xs (\since (BestThing obj) -> since == obj.since)
 
 main = do
   log "produceSeq:" *> do
     asyncCheck "Should produce results sequentially." 100 \done atLeastTwoUniqueNames -> do
       let names = runAtLeastTwoAndUnique atLeastTwoUniqueNames
       let bestThings = fromNames $ names.fst : names.snd : names.xs
+      let rightBestThings = Right <$> bestThings
 
-      let getter = getBestThing bestThings
+      let getter = getBestThing rightBestThings
       let pluckSeq (BestThing obj) = obj.name
       let initialSeq = names.fst
 
