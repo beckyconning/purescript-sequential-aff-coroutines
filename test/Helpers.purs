@@ -1,18 +1,18 @@
 module Test.Helpers where
 
-import Prelude
-
-import Data.Either (Either(..), either)
-import Control.Monad.Aff (Aff(), makeAff, launchAff)
-import Control.Monad.Eff.Exception (error, Error())
-import Data.Maybe (Maybe(..))
+import Control.Monad.Aff (Aff, makeAff)
+import Control.Monad.Eff.Exception (Error, error)
 import Data.Array (findIndex, index)
-import Data.Generic (Generic, gShow)
+import Data.Either (Either(), either)
+import Data.Generic (class Generic, gShow)
+import Data.Maybe (Maybe(..))
+import Prelude ((<>), ($), (>>=))
 
-stubGet :: forall a b eff. (Generic b) => (b -> a -> Boolean) -> Array a -> b -> Aff eff a
-stubGet f results x = makeAff \fail success -> case maybeResult of
-  Just result -> success result
-  Nothing -> fail $ error $ "Test.Helpers.stubGet: Couldn't get \"" ++ gShow x ++ "\"."
+stubGet :: forall a b eff. (Generic b) =>
+  Array (Either Error a) -> (b -> a -> Boolean) -> b -> Aff eff a
+stubGet results f x = makeAff \fail success -> case found of
+  Just result -> either fail success result
+  Nothing -> fail $ error $ "Test.Helpers.stubGet: Couldn't get \"" <> gShow x <> "\"."
     where
-    maybeResult :: Maybe a
-    maybeResult = findIndex (f x) results >>= index results
+    found :: Maybe (Either Error a)
+    found = findIndex (either (\_ -> false) (f x)) results >>= index results

@@ -7,21 +7,17 @@ import Control.Monad.Aff (Aff, runAff, later)
 import Control.Monad.Aff.AVar (AVAR)
 import Control.Monad.Eff.Class (liftEff)
 import Control.Monad.Eff.Exception (Error)
-import Data.Either (Either(..), either)
+import Data.Either (Either(..))
 import Data.Functor (($>))
 import Prelude
 
-type AffGetter a b err eff = b -> Aff (avar :: AVAR | eff) (Either err a)
-type SeqProducer a err eff = Producer a (Aff (avar :: AVAR | eff)) (Either Error err)
+type AffGetter a b eff = b -> Aff (avar :: AVAR | eff) a
+type SeqProducer a eff = Producer a (Aff (avar :: AVAR | eff)) Error
 
--- Should the pluck return Either?
-
-produceSeq :: forall a b err eff. AffGetter a b err eff -> (a -> b) -> b -> SeqProducer a err eff
-produceSeq get pluckSeq initialSeq =
-  produce \emit ->
-    void $ runAff (emit <<< Right <<< Left) (const $ pure unit) $ getNext emit initialSeq
+produceSeq :: forall a b eff. AffGetter a b eff -> (a -> b) -> b -> SeqProducer a eff
+produceSeq get pluckSeq initialSeq = produce \emit -> void $ run emit $ getNext emit initialSeq
   where
-  getNext emit seq = later $ get seq >>= either emitAndEnd emitAndGetNext
-    where
-    emitAndGetNext x = (liftEff $ emit $ Left x) *> getNext emit (pluckSeq x)
-    emitAndEnd error = liftEff $ emit $ Right $ Right error
+  getNext emit seq = later $ get seq >>= emitAndGetNext emit
+  emitAndGetNext emit x = (liftEff $ emit $ Left x) *> getNext emit (pluckSeq x)
+  emitAndEnd emit error = liftEff $ emit $ Right error
+  run emit = runAff (emitAndEnd emit) (const (pure unit))
