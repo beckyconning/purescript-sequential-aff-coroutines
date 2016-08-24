@@ -17,7 +17,7 @@ import qualified Data.Array (length, take) as A
 
 import Control.Coroutine
 
-take :: forall a m. (Monad m) => Int -> Transformer (Array a) (Maybe (Array a)) m Unit
+take :: forall a b m. (Monad m) => Int -> Transformer (Array a) (Maybe (Array a)) m b
 take n = forever (transform maybeTake)
   where
   maybeTake :: forall a. Array a -> Maybe (Array a)
@@ -30,16 +30,10 @@ collect = tailRecM go []
   go :: Array a -> Transformer a (Array a) m (Either (Array a) r)
   go xs = liftFreeT $ Transform \x -> Tuple (xs <> [x]) (Left (xs <> [x]))
 
-checkEq :: forall a m. (Eq a, MonadRec m) => Array a -> Transformer a (Maybe Boolean) m Unit
-checkEq xs = check (A.length xs) (eq xs)
-
-checkGEq :: forall a m. (Generic a, MonadRec m) => Array a -> Transformer a (Maybe Boolean) m Unit
-checkGEq xs = check (A.length xs) (gEq xs)
-
-check :: forall a m. (MonadRec m) => Int -> (Array a -> Boolean) -> Transformer a (Maybe Boolean) m Unit
+check :: forall a b c m. (MonadRec m) => Int -> (Array a -> b) -> Transformer a (Maybe b) m c
 check n p = collect ~~ (take n) ~~ assertPredicate
   where
   assertPredicate = forever (transform (>>= (return <<< p)))
 
-done :: forall a eff. (a -> Aff eff Unit) -> Consumer (Maybe a) (Aff eff) Unit
-done f = consumer (($> Nothing) <<< maybe (return unit) f)
+maybeCallback :: forall a b eff. (a -> Aff eff Unit) -> Consumer (Maybe a) (Aff eff) b
+maybeCallback f = consumer (($> Nothing) <<< maybe (return unit) f)

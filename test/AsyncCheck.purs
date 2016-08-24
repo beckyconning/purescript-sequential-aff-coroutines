@@ -2,38 +2,49 @@ module Test.AsyncCheck where
 
 import Prelude
 
-import Test.Process (exit, EXIT(), logGreen, logRed, COLORLOG())
-import Data.Foldable (all)
-import Data.Array ((:), length)
+import Data.Functor (($>))
+import Data.Maybe (maybe, Maybe(..))
+import Data.Either (Either(..))
+import Data.Foldable (all, Foldable)
+import Data.Traversable (sequence)
+import Data.List (length, toList, List(..))
+import Control.Monad.Aff (Aff(), launchAff, later)
 import Control.Monad.Eff.Class (liftEff)
+import Control.Monad.Eff.Exception (throwException, error)
 import Control.Monad.Eff (foreachE, Eff())
+import Control.Monad.Eff.Random (RANDOM(), random)
 import Control.Monad.Eff.Console (log, CONSOLE())
-import Control.Monad.Eff.Random (RANDOM())
-import Control.Monad.Eff.Ref (newRef, REF(), readRef, modifyRef)
 import Control.Monad.Trans (lift)
-import Control.Apply ((*>))
 import Control.Monad.Trampoline (runTrampoline)
 
+import Control.Coroutine
+import Control.Coroutine.Aff
+
+import Test.Coroutine (collect, take)
 import Test.StrongCheck.Gen
 import Test.StrongCheck
 
-type AsyncCheckEff eff =
-  Eff (exit :: EXIT, colorLog:: COLORLOG, console :: CONSOLE, ref :: REF, random :: RANDOM | eff) Unit
+defState :: Seed -> GenState
+defState s = (GenState {seed: s, size: 10})
 
-type AsyncCheckable a eff =
-  (Boolean -> AsyncCheckEff eff) -> a -> AsyncCheckEff eff
+throwOnFirstFailure :: forall f. (Foldable f) => Int -> f Result -> QC Unit
+throwOnFirstFailure n fr = throwOnFirstFailure' n (toList fr)
+  where
+  throwOnFirstFailure' :: Int -> List Result -> QC Unit
+  throwOnFirstFailure' _ Nil = pure unit
+  throwOnFirstFailure' n (Cons (Failed msg) _) = throwException $ error $ "Test " <> show n <> " failed: \n" <> msg
+  throwOnFirstFailure' n (Cons _ rest) = throwOnFirstFailure (n + 1) rest
 
-asyncCheck :: forall a eff. (Arbitrary a) =>
-  String -> Int -> AsyncCheckable a eff -> AsyncCheckEff eff
-asyncCheck s n f = do
-  refTestResults <- newRef []
-  let done result = do
-        modifyRef refTestResults (result :)
-        testResults <- readRef refTestResults
-        if (length testResults == n) then allDone testResults else return unit
-  foreachE (runTrampoline $ sample n arbitrary) (f done)
-    where
-    allDone xs = case ((all (== true) xs)) of
-      true -> logGreen $ "  ✔︎ " ++ s
-      false -> logRed ("  ✘ " ++ s) *> exit 1
+countSuccesses :: forall f. (Foldable f) => f Result -> Int
+countSuccesses fa = countSuccesses' 0 (toList fa)
+  where
+  countSuccesses' acc Nil = acc
+  countSuccesses' acc (Cons Success rest) = countSuccesses' (acc + 1) rest
+  countSuccesses' acc (Cons _ rest) = countSuccesses' acc rest
 
+-- affCheck \x y -> makeAff \_ done ->
+
+affCheck :: forall a. (Testable a) => (a -> Aff _ Result) -> Eff _ Unit
+affCheck f = do
+  seed <- random
+  sequence $ runTrampoline $ sample' 100 (defState seed) (affTest f)

@@ -11,23 +11,21 @@
     "output"
   ],
   "dependencies": {
-    "purescript-console": "^0.1.0",
-    "purescript-aff-coroutines": "~0.2.1",
-    "purescript-transformers": "~0.6.1",
-    "purescript-exceptions": "~0.3.0",
-    "purescript-control": "~0.3.0",
-    "purescript-foreign": "~0.7.0",
-    "purescript-freet": "~0.1.3",
-    "purescript-generics": "~0.5.0"
+    "purescript-console": "^1.0.0",
+    "purescript-aff-coroutines": "^3.0.0",
+    "purescript-transformers": "^1.0.0",
+    "purescript-exceptions": "^1.0.0",
+    "purescript-control": "^1.0.0",
+    "purescript-foreign": "^1.1.0",
+    "purescript-freet": "^1.0.0",
+    "purescript-generics": "^1.0.1"
   },
   "devDependencies": {
-    "purescript-test-unit": "~2.0.0",
-    "purescript-freet": "~0.1.3",
-    "purescript-quickcheck": "~0.10.1",
-    "purescript-exceptions": "~0.3.0",
-    "purescript-refs": "~0.2.0",
-    "purescript-strongcheck": "2f83c88823c0bd2c150ece0328d2747152f51858",
-    "purescript-free": "~0.7.0",
-    "purescript-strongcheck-generics": "~0.1.0"
+    "purescript-test-unit": "^9.0.0",
+    "purescript-quickcheck": "^1.0.0",
+    "purescript-refs": "^1.0.0",
+    "purescript-strongcheck": "^1.1.1",
+    "purescript-free": "^1.2.0",
+    "purescript-strongcheck-generics": "^0.4.0"
   }
 }
