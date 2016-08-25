@@ -6,14 +6,14 @@ import Control.Coroutine.Aff (produceAff)
 import Control.Monad.Aff (Aff)
 import Control.Monad.Aff.AVar (AVAR)
 import Control.Monad.Free.Trans (hoistFreeT)
-import Control.Monad.Aff.Class (class MonadAff, liftAff)
+import Control.Monad.Aff.Free (class Affable, fromAff)
 import Data.Either (Either(..))
 import Data.Functor (($>))
 import Prelude
 
 type AffGetter a b eff = b -> Aff (avar :: AVAR | eff) a
 
-produceSeq :: forall a b m eff. (MonadAff (avar :: AVAR | eff) m) => AffGetter a b eff -> (a -> b) -> b -> Producer a m Unit
+produceSeq :: forall a b m eff. (Affable (avar :: AVAR | eff) m, Functor m) => AffGetter a b eff -> (a -> b) -> b -> Producer a m Unit
 produceSeq get pluckSeq initialSeq = produceAff' \emit -> getNext emit initialSeq
   where
   getNext emit seq = get seq >>= emitAndGetNext emit
@@ -21,7 +21,7 @@ produceSeq get pluckSeq initialSeq = produceAff' \emit -> getNext emit initialSe
 
 produceAff'
   :: forall a r m eff
-   . (MonadAff (avar :: AVAR | eff) m)
+   . (Affable (avar :: AVAR | eff) m, Functor m)
   => ((Either a r -> Aff (avar :: AVAR | eff) Unit) -> Aff (avar :: AVAR | eff) Unit)
   -> Producer a m r
-produceAff' = hoistFreeT liftAff <<< produceAff
+produceAff' = hoistFreeT fromAff <<< produceAff

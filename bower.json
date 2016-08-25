@@ -18,7 +18,8 @@
     "purescript-control": "^1.0.0",
     "purescript-foreign": "^1.1.0",
     "purescript-freet": "^1.0.0",
-    "purescript-generics": "^1.0.1"
+    "purescript-generics": "^1.0.1",
+    "purescript-aff-free": "^1.0.0"
   },
   "devDependencies": {
     "purescript-test-unit": "^9.0.0",
