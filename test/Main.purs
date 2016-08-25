@@ -4,6 +4,7 @@ import Control.Apply ((*>))
 import Control.Coroutine (($$), ($~), runProcess)
 import Control.Coroutine.Aff.Seq (produceSeq)
 import Control.Monad.Aff (Aff(), launchAff)
+import Control.Monad.Eff (Eff)
 import Control.Monad.Eff.Class (liftEff)
 import Control.Monad.Eff.Console (log)
 import Control.Monad.Eff.Exception (Error())
@@ -12,7 +13,7 @@ import Data.Either (Either(..))
 import Data.Generic (class Generic)
 import Data.Tuple (Tuple(..))
 import Data.Tuple.Nested (uncurry3)
-import Prelude (class Show, class Ord, (<<<), ($), (<$>), (==), compose, map, eq, (<*>))
+import Prelude (class Show, class Ord, Unit, void, (<<<), ($), (<$>), (==), compose, map, eq, (<*>))
 import Test.AsyncCheck (asyncCheck)
 import Test.Coroutine (checkGEq, done) as C
 import Test.Helpers (stubGet)
@@ -46,6 +47,7 @@ fromNames names = zipWith (\s n -> BestThing { since: s, name: n }) names (drop 
 getBestThing :: forall eff. Array (Either Error BestThing) -> String -> Aff eff BestThing
 getBestThing xs = stubGet xs (\since (BestThing obj) -> since == obj.since)
 
+main :: Eff _ Unit
 main = do
   log "produceSeq:" *> do
     asyncCheck "Should produce results sequentially." 100 \done atLeastTwoUniqueNames -> do
@@ -59,7 +61,7 @@ main = do
 
       let produce = produceSeq getter pluckSeq initialSeq
 
-      launchAff $ runProcess (produce $~ (C.checkGEq bestThings) $$ (C.done (liftEff <<< done)))
+      void $ launchAff $ runProcess ((produce $~ (C.checkGEq bestThings)) $$ (C.done (liftEff <<< done)))
 
     -- Should fail when getter provides a left
 
