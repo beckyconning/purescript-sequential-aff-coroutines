@@ -2,22 +2,26 @@ module Control.Coroutine.Aff.Seq where
 
 import Control.Apply ((*>))
 import Control.Coroutine (Producer)
-import Control.Coroutine.Aff (produce)
-import Control.Monad.Aff (Aff, runAff, later)
+import Control.Coroutine.Aff (produceAff)
+import Control.Monad.Aff (Aff)
 import Control.Monad.Aff.AVar (AVAR)
-import Control.Monad.Eff.Class (liftEff)
-import Control.Monad.Eff.Exception (Error)
+import Control.Monad.Free.Trans (hoistFreeT)
+import Control.Monad.Aff.Class (class MonadAff, liftAff)
 import Data.Either (Either(..))
 import Data.Functor (($>))
 import Prelude
 
 type AffGetter a b eff = b -> Aff (avar :: AVAR | eff) a
-type SeqProducer a eff = Producer a (Aff (avar :: AVAR | eff)) Error
 
-produceSeq :: forall a b eff. AffGetter a b eff -> (a -> b) -> b -> SeqProducer a eff
-produceSeq get pluckSeq initialSeq = produce \emit -> void $ run emit $ getNext emit initialSeq
+produceSeq :: forall a b m eff. (MonadAff (avar :: AVAR | eff) m) => AffGetter a b eff -> (a -> b) -> b -> Producer a m Unit
+produceSeq get pluckSeq initialSeq = produceAff' \emit -> getNext emit initialSeq
   where
-  getNext emit seq = later $ get seq >>= emitAndGetNext emit
-  emitAndGetNext emit x = (liftEff $ emit $ Left x) *> getNext emit (pluckSeq x)
-  emitAndEnd emit error = liftEff $ emit $ Right error
-  run emit = runAff (emitAndEnd emit) (const (pure unit))
+  getNext emit seq = get seq >>= emitAndGetNext emit
+  emitAndGetNext emit x = (emit $ Left x) *> getNext emit (pluckSeq x)
+
+produceAff'
+  :: forall a r m eff
+   . (MonadAff (avar :: AVAR | eff) m)
+  => ((Either a r -> Aff (avar :: AVAR | eff) Unit) -> Aff (avar :: AVAR | eff) Unit)
+  -> Producer a m r
+produceAff' = hoistFreeT liftAff <<< produceAff
